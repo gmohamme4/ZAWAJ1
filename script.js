@@ -109,8 +109,11 @@ const stopAutoScroll = () => {
   invitation.addEventListener(evt, stopAutoScroll, { passive: true });
 });
 
+let introStarted = false;
 let introFinished = false;
 function finishIntro() {
+  // Loading errors must never open the invitation before the user's gesture.
+  if (intro && introVideo && !introStarted) return;
   if (introFinished) return;
   introFinished = true;
   intro?.classList.add("hidden");
@@ -121,12 +124,16 @@ function finishIntro() {
 }
 
 function startIntroVideo() {
-  if (!introVideo || introFinished || !introVideo.paused) return;
+  if (!introVideo || introStarted || introFinished) return;
+  introStarted = true;
+  if (introVideo.error || introVideo.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
+    finishIntro();
+  } else {
+    // Request playback directly from the click, before starting the music.
+    // If playback fails, the same click still opens the invitation.
+    introVideo.play().catch(finishIntro);
+  }
   startMusic();
-  introVideo.play().catch(() => {
-    // Native controls allow playback when autoplay is blocked.
-    introVideo.controls = true;
-  });
 }
 
 if (intro && introVideo) {
@@ -137,7 +144,6 @@ if (intro && introVideo) {
   introVideo.querySelector("source")?.addEventListener("error", finishIntro, { once: true });
   intro.addEventListener("click", startIntroVideo);
   introVideo.addEventListener("playing", () => intro.classList.add("opening"));
-  if (introVideo.error) finishIntro();
 
 } else {
   finishIntro();
